@@ -19,12 +19,17 @@ No `npm install` needed. There are no dependencies.
 
 ## Requirements
 
-- **Node.js 14+**
-- **curl**
-- A modern web browser
-- Windows 10/11, macOS, or Linux
-
 **Jump to your install steps:** [Windows](#windows) | [macOS](#macos) | [Linux](#linux)
+
+| | [Windows 10 / 11](#windows) | [macOS](#macos) | [Linux](#linux) |
+|---|---|---|---|
+| **Node.js 14+** | Installer from nodejs.org | `brew install node` | `apt` / `dnf` / `pacman` |
+| **curl** | Built in | Built in | Usually installed; otherwise `apt` / `dnf` / `pacman` |
+| **Start** | Double-click `launch.vbs` | `./launch.sh` | `./launch.sh` |
+| **Stop** | Double-click `stop.vbs` | `Ctrl + C` or `./stop.sh` | `Ctrl + C` or `./stop.sh` |
+| **Full steps** | [Windows steps](#windows) | [macOS steps](#macos) | [Linux steps](#linux) |
+
+You also need a modern web browser (Chrome, Edge, Firefox, Safari). No `npm install` is needed.
 
 ## Setup
 
@@ -50,6 +55,8 @@ playlist-checker/
 
 If Windows blocks a `.vbs` file: right-click it > Properties > **Unblock**.
 
+[Back to Requirements](#requirements)
+
 ### macOS
 
 1. Install [Homebrew](https://brew.sh) if you do not have it, then in Terminal run:
@@ -71,6 +78,8 @@ If Windows blocks a `.vbs` file: right-click it > Properties > **Unblock**.
 5. **Stop:** press `Ctrl + C`, or run `./stop.sh` if you used `-b`.
 
 If macOS says the script cannot be opened, run it from Terminal as shown above.
+
+[Back to Requirements](#requirements)
 
 ### Linux
 
@@ -98,6 +107,8 @@ If macOS says the script cannot be opened, run it from Terminal as shown above.
 
 4. **Start:** `./launch.sh` (or `./launch.sh -b` to run in the background). The browser opens through `xdg-open`; on a server or if nothing opens, browse to `http://localhost:8765` yourself.
 5. **Stop:** press `Ctrl + C`, or run `./stop.sh` if you used `-b`.
+
+[Back to Requirements](#requirements)
 
 ### Any system (terminal)
 
@@ -142,7 +153,7 @@ Change the port by editing `const PORT = 8765;` at the top of `app.js`, then res
 
 ## Disclaimer
 
-This is a generic viewer for M3U/M3U8 text files. It does not host, provide, or stream any content and does not decrypt protected data. You are responsible for the sources you use and for following your provider's terms and your local laws.
+This is a generic viewer for M3U/M3U8 text files. It does not host, provide, or stream any content. The optional AES decrypt feature only works with a key that you enter yourself. You are responsible for the sources you use and for following your provider's terms and your local laws.
 
 ## License
 
