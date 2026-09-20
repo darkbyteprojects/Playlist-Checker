@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playlist Checker</title>
+  <script>
+    // Apply saved theme before first paint (prevents a flash)
+    try { document.documentElement.dataset.theme = localStorage.getItem('iptv_theme') === 'light' ? 'light' : 'dark'; } catch (e) {}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ---------- Theme tokens ---------- */
+    :root {
+      color-scheme: dark;
+      --bg: #09090f;
+      --bg-glow: rgba(139, 92, 246, 0.16);
+      --card-bg: #13131b;
+      --card-border: rgba(255, 255, 255, 0.08);
+
+      --input-bg: #1a1a24;
+      --input-border: rgba(255, 255, 255, 0.09);
+      --input-focus-bg: #1f1f2b;
+      --hover: #272733;
+      --subtle: rgba(255, 255, 255, 0.035);
+      --well: rgba(0, 0, 0, 0.28);
+
+      --accent: #8b5cf6;
+      --accent-hover: #7c3aed;
+      --accent-glow: rgba(139, 92, 246, 0.32);
+      --accent-soft: rgba(139, 92, 246, 0.18);
+      --accent-ink: #c4b5fd;
+
+      --text: #f4f4f8;
+      --text-muted: #a3a3b0;
+      --text-dim: #6c6c7a;
+
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --err: #f87171;
+
+      --switch-off: #363642;
+      --switch-knob: #a3a3b0;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+
+      --terminal-bg: #07070c;
+      --code-green: #4ade80;
+      --code-blue: #7dd3fc;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f2f2f8;
+      --bg-glow: rgba(124, 58, 237, 0.10);
+      --card-bg: #ffffff;
+      --card-border: rgba(24, 24, 52, 0.10);
+
+      --input-bg: #f3f3f9;
+      --input-border: rgba(24, 24, 52, 0.14);
+      --input-focus-bg: #ffffff;
+      --hover: #e6e6f0;
+      --subtle: rgba(24, 24, 52, 0.035);
+      --well: rgba(24, 24, 52, 0.045);
+
+      --accent: #7c3aed;
+      --accent-hover: #6d28d9;
+      --accent-glow: rgba(124, 58, 237, 0.28);
+      --accent-soft: rgba(124, 58, 237, 0.11);
+      --accent-ink: #6d28d9;
+
+      --text: #16162a;
+      --text-muted: #5a5a70;
+      --text-dim: #8a8aa0;
+
+      --ok: #059669;
+      --warn: #b45309;
+      --err: #dc2626;
+
+      --switch-off: #cdcddb;
+      --switch-knob: #ffffff;
+      --shadow: 0 6px 22px rgba(30, 30, 80, 0.08);
+    }
+
+    /* Terminals and toasts stay dark in both themes */
+    .terminal-console, .win-toast {
+      --card-border: rgba(255, 255, 255, 0.08);
+      --input-bg: #1a1a24;
+      --input-border: rgba(255, 255, 255, 0.09);
+      --input-focus-bg: #1f1f2b;
+      --hover: #272733;
+      --subtle: rgba(255, 255, 255, 0.035);
+      --accent: #8b5cf6;
+      --accent-soft: rgba(139, 92, 246, 0.2);
+      --accent-ink: #c4b5fd;
+      --text: #f4f4f8;
+      --text-muted: #a3a3b0;
+      --text-dim: #6c6c7a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      background:
+        radial-gradient(900px 420px at 12% -8%, var(--bg-glow), transparent 70%),
+        var(--bg);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: var(--font-ui);
+      padding: 14px 20px 24px;
+      min-height: 100vh;
+      overflow-x: hidden;
+      transition: background-color 0.25s, color 0.25s;
+    }
+
+    button { font-family: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible, .count-badge:focus-visible,
+    .switch-box input:focus-visible + .switch-slider {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .app-container {
+      max-width: 1720px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ---------- Header ---------- */
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+    .brand-mark {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #ec4899);
+      display: grid; place-items: center; color: #fff; flex-shrink: 0;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .brand h1 { font-size: 0.98rem; font-weight: 700; letter-spacing: -0.2px; line-height: 1.2; }
+    .brand p { font-size: 0.7rem; color: var(--text-muted); line-height: 1.2; }
+    .icon-btn {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      color: var(--text-muted); cursor: pointer;
+      display: grid; place-items: center;
+      transition: all 0.15s var(--ease);
+    }
+    .icon-btn:hover { color: var(--text); background: var(--hover); }
+    .icon-btn .ic-sun { display: none; }
+    :root[data-theme="light"] .icon-btn .ic-sun { display: block; }
+    :root[data-theme="light"] .icon-btn .ic-moon { display: none; }
+
+    /* ---------- Layout ---------- */
+    .top-split {
+      display: grid;
+      grid-template-columns: 460px minmax(0, 1fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+    @media (max-width: 1100px) {
+      .top-split { grid-template-columns: 1fr; }
+      .right-pane { height: auto; }
+      .payload-card { height: 460px; flex: none; }
+    }
+
+    .left-pane { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    .right-pane {
+      display: flex; flex-direction: column;
+      min-width: 0; min-height: 420px; height: 100%; position: relative;
+    }
+
+    .metrics-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 9px 16px;
+      gap: 8px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow);
+    }
+    .metric-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .m-label {
+      font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--text-dim); font-weight: 600;
+    }
+    .m-value {
+      font-family: var(--font-mono);
+      font-size: 0.82rem; font-weight: 600; color: var(--accent);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .status-idle { color: var(--text-muted); }
+    .status-run  { color: var(--warn); }
+    .status-ok   { color: var(--ok); }
+    .status-err  { color: var(--err); }
+
+    .studio-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 16px 18px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      gap: 12px; position: relative; overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .pulse-line {
+      position: absolute; top: 0; left: 0; height: 2.5px; width: 100%;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      transform: translateX(-100%); opacity: 0;
+    }
+    .pulse-line.active { opacity: 1; animation: pulseAnim 1.2s infinite linear; }
+    @keyframes pulseAnim { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+    .form-content { display: flex; flex-direction: column; gap: 10px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .form-group-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-group-row.three { grid-template-columns: 1.3fr 1fr 1fr; }
+    @media (max-width: 520px) {
+      .form-group-row, .form-group-row.three { grid-template-columns: 1fr; }
+      .metrics-bar { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .form-label {
+      font-size: 0.72rem; font-weight: 500; color: var(--text-muted);
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    }
+    .form-label span.note { font-size: 0.65rem; color: var(--text-dim); }
+
+    .input-field {
+      position: relative; display: flex; align-items: center;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 10px;
+      transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease), background 0.15s;
+    }
+    .input-field:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+      background: var(--input-focus-bg);
+    }
+    .input-field input, .input-field select {
+      width: 100%; background: transparent; border: none;
+      padding: 8px 28px 8px 11px;
+      color: var(--text); font-size: 0.82rem; font-family: inherit; outline: none;
+      min-width: 0;
+    }
+    .input-field input::placeholder { color: var(--text-dim); }
+    .select-field select {
+      appearance: none; -webkit-appearance: none; cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8aa0' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center;
+    }
+    .select-field select option { background: var(--card-bg); color: var(--text); }
+
+    .btn-clear {
+      position: absolute; right: 6px; background: transparent; border: none;
+      color: var(--text-dim); border-radius: 4px; width: 18px; height: 18px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; cursor: pointer; transition: color 0.15s;
+    }
+    .btn-clear:hover { color: var(--text); }
+
+    .segmented-presets {
+      display: flex; gap: 4px; margin-top: 2px;
+      background: var(--well); padding: 2.5px; border-radius: 8px;
+      border: 1px solid var(--input-border); overflow-x: auto; scrollbar-width: none;
+    }
+    .segmented-presets::-webkit-scrollbar { display: none; }
+    .preset-btn {
+      flex: 1; background: transparent; color: var(--text-muted); border: none;
+      padding: 4px 8px; font-size: 0.68rem; font-weight: 500; border-radius: 6px;
+      cursor: pointer; transition: all 0.15s var(--ease); white-space: nowrap; text-align: center;
+    }
+    .preset-btn:hover { color: var(--text); background: var(--subtle); }
+    .preset-btn.active { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+
+    .toggle-list {
+      display: flex; flex-direction: column;
+      background: var(--subtle); border: 1px solid var(--card-border);
+      border-radius: 10px; overflow: hidden;
+    }
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 8px 12px;
+    }
+    .toggle-row + .toggle-row { border-top: 1px solid var(--card-border); }
+    .toggle-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .toggle-text span { font-size: 0.74rem; font-weight: 500; color: var(--text); }
+    .toggle-text small { font-size: 0.64rem; color: var(--text-dim); line-height: 1.3; }
+
+    .switch-box { position: relative; display: inline-block; width: 34px; height: 19px; flex-shrink: 0; }
+    .switch-box input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .switch-slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: var(--switch-off); border-radius: 19px; transition: background 0.2s;
+    }
+    .switch-slider:before {
+      position: absolute; content: ""; height: 13px; width: 13px; left: 3px; bottom: 3px;
+      background: var(--switch-knob); border-radius: 50%; transition: transform 0.2s, background 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .switch-box input:checked + .switch-slider { background: var(--accent); }
+    .switch-box input:checked + .switch-slider:before { transform: translateX(15px); background: #fff; }
+
+    .collapse-header {
+      background: transparent; border: none; color: var(--accent-ink);
+      font-size: 0.72rem; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 5px;
+      cursor: pointer; padding: 2px 0;
+    }
+    .collapse-header svg { transition: transform 0.2s var(--ease); }
+    .collapse-header.open svg { transform: rotate(180deg); }
+    .collapse-pane {
+      display: none; flex-direction: column; gap: 8px; margin-top: 4px;
+      padding: 10px; background: var(--well);
+      border: 1px solid var(--card-border); border-radius: 10px;
+    }
+    .collapse-pane.open { display: flex; }
+    .pane-hint { font-size: 0.66rem; color: var(--text-dim); line-height: 1.4; }
+
+    .action-row {
+      display: flex; gap: 8px; margin-top: 6px; padding-top: 10px;
+      border-top: 1px solid var(--card-border);
+    }
+    .btn-exec {
+      flex: 1; background: var(--accent); color: #fff; border: none; border-radius: 10px;
+      padding: 9px 16px; font-weight: 600; font-size: 0.85rem; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      box-shadow: 0 4px 14px var(--accent-glow); transition: all 0.15s;
+    }
+    .btn-exec:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .btn-exec .ic-stop { display: none; }
+    .btn-exec.running { background: #dc2626; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3); }
+    .btn-exec.running .ic-play { display: none; }
+    .btn-exec.running .ic-stop { display: block; }
+    .btn-reset, .btn-secondary {
+      background: var(--input-bg); color: var(--text-muted);
+      border: 1px solid var(--card-border); border-radius: 10px;
+      padding: 9px 14px; font-weight: 500; font-size: 0.85rem; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-reset:hover, .btn-secondary:hover { background: var(--hover); color: var(--text); }
+    .btn-secondary { padding: 7px 12px; font-size: 0.76rem; font-weight: 600; color: var(--accent-ink); align-self: flex-start; }
+    .dec-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    /* ---------- Terminals ---------- */
+    .terminal-console {
+      background: var(--terminal-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 18px; padding: 14px 18px;
+      display: flex; flex-direction: column; gap: 8px;
+      overflow: hidden; position: relative;
+      box-shadow: var(--shadow);
+    }
+    .payload-card { height: 100%; min-height: 0; flex: 1; }
+
+    .term-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.74rem; flex-shrink: 0; gap: 8px; color: var(--text);
+    }
+    @media (max-width: 640px) { .term-header { flex-wrap: wrap; } }
+    .term-title { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: 0.3px; }
+    .count-badge {
+      background: var(--accent-soft); color: var(--accent-ink);
+      padding: 2px 8px; border-radius: 6px; font-size: 0.68rem; font-weight: 600;
+      cursor: pointer; transition: background 0.15s; white-space: nowrap;
+    }
+    .count-badge:hover { background: rgba(139, 92, 246, 0.36); }
+
+    .term-actions-group { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+    .search-filter-box { position: relative; display: flex; align-items: center; width: 140px; }
+    .search-filter-box input {
+      width: 100%; background: var(--input-bg); border: 1px solid var(--card-border);
+      border-radius: 6px; padding: 4px 20px 4px 8px; color: var(--text);
+      font-size: 0.72rem; outline: none;
+    }
+    .search-filter-box input:focus { border-color: var(--accent); }
+    .search-filter-x {
+      position: absolute; right: 5px; background: none; border: none;
+      color: var(--text-dim); font-size: 9px; cursor: pointer; display: none;
+    }
+    .search-filter-x.show { display: block; }
+
+    .term-btn {
+      background: var(--input-bg); color: var(--text-muted);
+      border: 1px solid var(--card-border); border-radius: 6px;
+      padding: 4px 9px; font-size: 0.72rem; font-weight: 500; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 4px; transition: all 0.15s;
+    }
+    .term-btn:hover { background: var(--hover); color: var(--text); }
+
+    .pre-container { position: relative; flex: 1; min-height: 0; width: 100%; height: 100%; overflow: hidden; }
+    pre {
+      position: absolute; inset: 0;
+      font-family: var(--font-mono);
+      line-height: 1.5; color: var(--code-green); font-size: 0.8rem;
+      white-space: pre; word-break: normal; overflow: auto;
+      scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+      tab-size: 4;
+    }
+    pre.wrapped { white-space: pre-wrap; word-break: break-all; }
+    pre::-webkit-scrollbar { height: 6px; width: 6px; }
+    pre::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 3px; }
+
+    .channel-highlight-line {
+      display: inline-block; width: 100%; box-sizing: border-box;
+      background: rgba(139, 92, 246, 0.22);
+      animation: highlightFade 3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    @keyframes highlightFade {
+      0% { background: rgba(139, 92, 246, 0.45); }
+      80% { background: rgba(139, 92, 246, 0.22); }
+      100% { background: transparent; }
+    }
+
+    .bottom-pane { width: 100%; }
+    .bottom-pane .terminal-console {
+      height: 340px; max-height: 340px;
+      transition: height 0.25s var(--ease), max-height 0.25s var(--ease);
+    }
+    .bottom-pane .terminal-console.expanded { height: 550px; max-height: 550px; }
+    .bottom-pane pre { color: var(--code-blue); font-size: 0.76rem; }
+
+    /* ---------- Channel directory ---------- */
+    .channel-sidebar {
+      position: absolute; top: 46px; right: 14px; bottom: 12px; width: 320px; max-width: calc(100% - 28px);
+      background: rgba(16, 16, 23, 0.98); backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 12px;
+      display: none; flex-direction: column; gap: 8px; z-index: 50;
+      box-shadow: -4px 0 28px rgba(0, 0, 0, 0.7);
+    }
+    .channel-sidebar.active { display: flex; }
+    .channel-sidebar-header {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.75rem; font-weight: 600; color: var(--text);
+      border-bottom: 1px solid var(--card-border); padding-bottom: 6px;
+    }
+    .sidebar-close { background: none; border: none; color: var(--text-dim); font-size: 14px; cursor: pointer; padding: 0 4px; }
+    .sidebar-close:hover { color: var(--text); }
+    .ch-search-wrap { position: relative; display: flex; align-items: center; width: 100%; }
+    .ch-search-wrap input {
+      width: 100%; background: var(--input-bg); border: 1px solid var(--card-border);
+      border-radius: 6px; padding: 5px 8px; color: var(--text); font-size: 0.74rem; outline: none;
+    }
+    .ch-search-wrap input:focus { border-color: var(--accent); }
+    .channel-list-items { overflow-y: auto; display: flex; flex-direction: column; gap: 4px; flex: 1; padding-right: 2px; }
+    .channel-list-items::-webkit-scrollbar { width: 5px; }
+    .channel-list-items::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+    .ch-row-btn {
+      flex-shrink: 0; height: 32px; line-height: 30px;
+      background: var(--subtle); border: 1px solid transparent; border-radius: 6px;
+      padding: 0 10px; font-size: 0.76rem; font-family: inherit; color: var(--text);
+      cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; display: block; transition: all 0.12s;
+    }
+    .ch-row-btn:hover { background: var(--accent-soft); color: #ddd6fe; border-color: rgba(139, 92, 246, 0.5); }
+    .ch-note { font-size: 0.68rem; color: var(--text-dim); padding: 6px 4px; text-align: center; }
+
+    .terminal-console:fullscreen {
+      width: 100vw !important; height: 100vh !important; max-height: 100vh !important;
+      border-radius: 0; border: none; padding: 20px 24px; background: #000;
+    }
+
+    /* ---------- Toasts ---------- */
+    .win-toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 10px;
+      z-index: 99999; pointer-events: none;
+    }
+    @media (max-width: 520px) { .win-toast-container { left: 12px; right: 12px; bottom: 12px; } }
+    .win-toast {
+      pointer-events: auto; width: 410px; max-width: 100%;
+      background: rgba(20, 19, 27, 0.97); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-left: 4px solid var(--toast-accent, var(--accent));
+      border-radius: 12px; padding: 14px 16px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+      display: flex; flex-direction: column; gap: 8px;
+      transform: translateX(110%); opacity: 0;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+    }
+    .win-toast.show { transform: translateX(0); opacity: 1; }
+    .win-toast.hide { transform: translateX(110%); opacity: 0; }
+    .win-toast-header {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.78rem; font-weight: 600; color: #f3f4f6;
+    }
+    .win-toast-close {
+      background: transparent; border: none; color: var(--text-dim); font-size: 12px;
+      cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.1s, color 0.1s;
+    }
+    .win-toast-close:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+    .win-toast-body {
+      font-size: 0.74rem; color: var(--text-muted); line-height: 1.5;
+      font-family: var(--font-mono); white-space: pre-line;
+      word-break: break-word; overflow-wrap: anywhere;
+    }
+    .win-toast-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .win-toast-btn {
+      background: var(--toast-accent, var(--accent)); color: var(--toast-ink, #fff);
+      border: none; border-radius: 6px; padding: 6px 12px;
+      font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: filter 0.15s;
+    }
+    .win-toast-btn:hover { filter: brightness(1.08); }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="7 4 20 12 7 20 7 4"></polygon></svg>
+        </div>
+        <div>
+          <h1>Playlist Checker</h1>
+          <p>M3U / IPTV playlist inspector</p>
+        </div>
+      </div>
+      <button type="button" class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Switch light / dark theme" aria-label="Switch light or dark theme">
+        <svg class="ic-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+        <svg class="ic-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+      </button>
+    </header>
+
+    <div class="top-split">
+      <div class="left-pane">
+        <div class="metrics-bar">
+          <div class="metric-cell">
+            <span class="m-label">Task</span>
+            <span class="m-value" id="taskName">READY</span>
+          </div>
+          <div class="metric-cell">
+            <span class="m-label">State</span>
+            <span class="m-value status-idle" id="taskState">IDLE</span>
+          </div>
+          <div class="metric-cell">
+            <span class="m-label">Duration</span>
+            <span class="m-value" id="taskTime">0.00s</span>
+          </div>
+          <div class="metric-cell">
+            <span class="m-label">Transferred</span>
+            <span class="m-value" id="taskBytes">0 B</span>
+          </div>
+        </div>
+
+        <div class="studio-card">
+          <div class="pulse-line" id="pulseLine"></div>
+
+          <div class="form-content">
+            <div class="form-group">
+              <label class="form-label" for="baseUrl">
+                <span>Stream / Playlist Target</span>
+                <span class="note">Auto-parses [tags]|headers</span>
+              </label>
+              <div class="input-field">
+                <input type="text" id="baseUrl" placeholder="https://domain.com/live.m3u" onpaste="handleSmartPaste(event)" autocomplete="off" spellcheck="false">
+                <button type="button" class="btn-clear" onclick="clearField('baseUrl')">✕</button>
+              </div>
+            </div>
+
+            <div class="form-group-row">
+              <div class="form-group">
+                <label class="form-label" for="tokenParam">Token / Query</label>
+                <div class="input-field">
+                  <input type="text" id="tokenParam" placeholder="?token=... or raw" autocomplete="off" spellcheck="false">
+                  <button type="button" class="btn-clear" onclick="clearField('tokenParam')">✕</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="bracketTag">Bracket Tag</label>
+                <div class="input-field">
+                  <input type="text" id="bracketTag" placeholder="[rts] or [live]" autocomplete="off" spellcheck="false">
+                  <button type="button" class="btn-clear" onclick="clearField('bracketTag')">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="userAgent">
+                <span>User-Agent</span>
+                <span class="note">Empty = default</span>
+              </label>
+              <div class="input-field">
+                <input type="text" id="userAgent" placeholder="OTT Navigator, TiviMate, VLC..." autocomplete="off" spellcheck="false">
+                <button type="button" class="btn-clear" onclick="clearField('userAgent')">✕</button>
+              </div>
+
+              <div class="segmented-presets">
+                <button class="preset-btn" type="button" onclick="setUA('OTT Navigator')">OTT Nav</button>
+                <button class="preset-btn" type="button" onclick="setUA('TiviMate/4.7.0 (Linux; Android 11)')">TiviMate</button>
+                <button class="preset-btn" type="button" onclick="setUA('VLC/3.0.18 LibVLC/3.0.18')">VLC</button>
+                <button class="preset-btn" type="button" onclick="setUA('ExoPlayerLab/2.18.1')">ExoPlayer</button>
+                <button class="preset-btn" type="button" onclick="setUA('')">None</button>
+              </div>
+            </div>
+
+            <div class="toggle-list">
+              <div class="toggle-row">
+                <div class="toggle-text">
+                  <span>Follow HTTP Redirects (-L)</span>
+                  <small>Follow 301 / 302 links to the final playlist</small>
+                </div>
+                <label class="switch-box" title="Follow HTTP redirects">
+                  <input type="checkbox" id="followRedirect" aria-label="Follow HTTP redirects">
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+              <div class="toggle-row">
+                <div class="toggle-text">
+                  <span>Auto-detect User-Agent</span>
+                  <small>If blocked or redirected, retry with common player agents</small>
+                </div>
+                <label class="switch-box" title="Automatically try other User-Agents">
+                  <input type="checkbox" id="autoUA" aria-label="Automatically try other User-Agents" checked>
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <button type="button" class="collapse-header" id="collapseBtn" onclick="toggleCollapse('adv')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                <span>Advanced Headers</span>
+              </button>
+
+              <div class="collapse-pane" id="collapsePane">
+                <div class="form-group-row">
+                  <div class="form-group">
+                    <label class="form-label" for="cacheControl">Cache-Control</label>
+                    <div class="input-field">
+                      <input type="text" id="cacheControl" placeholder="no-cache" autocomplete="off" spellcheck="false">
+                      <button type="button" class="btn-clear" onclick="clearField('cacheControl')">✕</button>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="customHeader">Custom Header</label>
+                    <div class="input-field">
+                      <input type="text" id="customHeader" placeholder="Referer: https://..." autocomplete="off" spellcheck="false">
+                      <button type="button" class="btn-clear" onclick="clearField('customHeader')">✕</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <button type="button" class="collapse-header" id="decBtn" onclick="toggleCollapse('dec')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                <span>AES Decrypt (encrypted playlists)</span>
+              </button>
+
+              <div class="collapse-pane" id="decPane">
+                <div class="form-group">
+                  <label class="form-label" for="decKey">
+                    <span>Key / Passphrase</span>
+                    <span class="note">Stays on this PC</span>
+                  </label>
+                  <div class="input-field">
+                    <input type="text" id="decKey" placeholder="Your AES key or passphrase" autocomplete="off" spellcheck="false">
+                    <button type="button" class="btn-clear" onclick="clearField('decKey')">✕</button>
+                  </div>
+                </div>
+
+                <div class="form-group-row three">
+                  <div class="form-group">
+                    <label class="form-label" for="decIv">IV <span class="note">optional</span></label>
+                    <div class="input-field">
+                      <input type="text" id="decIv" placeholder="auto" autocomplete="off" spellcheck="false">
+                      <button type="button" class="btn-clear" onclick="clearField('decIv')">✕</button>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="decKeyFmt">Format</label>
+                    <div class="input-field select-field">
+                      <select id="decKeyFmt">
+                        <option value="auto">Auto</option>
+                        <option value="text">Text</option>
+                        <option value="hex">Hex</option>
+                        <option value="base64">Base64</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="decMode">Mode</label>
+                    <div class="input-field select-field">
+                      <select id="decMode">
+                        <option value="auto">Auto</option>
+                        <option value="cbc">CBC</option>
+                        <option value="ecb">ECB</option>
+                        <option value="ctr">CTR</option>
+                        <option value="gcm">GCM</option>
+                        <option value="openssl">OpenSSL</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="dec-actions">
+                  <button type="button" class="btn-secondary" onclick="runDecrypt()">Decrypt payload</button>
+                  <span class="pane-hint">Needs the key from your provider. Auto mode tries AES-128/192/256 in CBC, ECB, CTR, GCM and OpenSSL formats. If a key is filled in, encrypted playlists are decrypted automatically after each fetch.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button type="button" class="btn-exec" id="runBtn" onclick="runFetch()" title="Shortcut: Ctrl + Enter">
+              <svg class="ic-play" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              <svg class="ic-stop" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>
+              <span id="runLabel">Run Fetch</span>
+            </button>
+            <button type="button" class="btn-reset" onclick="clearAllFields()" title="Reset all fields">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="right-pane">
+        <div class="terminal-console payload-card" id="payloadCard">
+          <div class="term-header">
+            <div class="term-title">
+              <span>PLAYLIST PAYLOAD</span>
+              <span id="channelBadge" class="count-badge" role="button" tabindex="0" onclick="toggleChannelSidebar()" title="Click to view parsed channel directory">0 channels</span>
+            </div>
+
+            <div class="term-actions-group">
+              <div class="search-filter-box">
+                <input type="text" id="searchFilter" placeholder="Filter..." oninput="filterPlaylist()" aria-label="Filter playlist">
+                <button type="button" class="search-filter-x" id="searchClear" onclick="clearSearch()" aria-label="Clear filter">✕</button>
+              </div>
+
+              <button type="button" class="term-btn" onclick="toggleWrap()" id="wrapBtn" title="Toggle line wrapping">Wrap</button>
+              <button type="button" class="term-btn" onclick="saveAsM3uFile()" title="Save as .m3u">Save</button>
+              <button type="button" class="term-btn" onclick="toggleFullscreen()" id="fullBtn" title="Toggle fullscreen">Full</button>
+              <button type="button" class="term-btn" onclick="copyPlaylistOnly()" title="Copy raw payload">Copy</button>
+            </div>
+          </div>
+
+          <div class="pre-container">
+            <pre id="payloadOutput"># Ready. Enter URL and run fetch...</pre>
+          </div>
+
+          <div class="channel-sidebar" id="channelSidebar">
+            <div class="channel-sidebar-header">
+              <span>Channel Directory</span>
+              <button type="button" class="sidebar-close" onclick="toggleChannelSidebar()" aria-label="Close channel directory">✕</button>
+            </div>
+            <div class="ch-search-wrap">
+              <input type="text" id="chDirSearch" placeholder="Search channels..." oninput="filterChannelDirectory()" aria-label="Search channels">
+            </div>
+            <div class="channel-list-items" id="channelListItems"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-pane">
+      <div class="terminal-console" id="traceConsole">
+        <div class="term-header">
+          <div class="term-title">PROCESS &amp; REDIRECT TRACE (VERBOSE)</div>
+          <div class="term-actions-group">
+            <button type="button" class="term-btn" onclick="toggleTraceExpand()" id="traceExpandBtn" title="Toggle larger trace window">Expand</button>
+            <button type="button" class="term-btn" onclick="copyProcessLog()">Copy Full Trace</button>
+          </div>
+        </div>
+        <div class="pre-container">
+          <pre id="processOutput">system: awaiting task invocation...</pre>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="win-toast-container" id="winToastContainer" aria-live="polite"></div>
+
+  <script>
+    /* =====================================================================
+       Playlist Checker - frontend
+       ===================================================================== */
+
+    const TEXT_FIELDS = ['baseUrl', 'tokenParam', 'bracketTag', 'userAgent', 'cacheControl', 'customHeader', 'decKey', 'decIv'];
+    const SELECT_FIELDS = ['decKeyFmt', 'decMode'];
+    const CHECK_FIELDS = { followRedirect: false, autoUA: true };
+
+    // Common player identities tried automatically when a server blocks the default agent.
+    const UA_FALLBACKS = [
+      'OTT Navigator',
+      'TiviMate/4.7.0 (Linux; Android 11)',
+      'VLC/3.0.18 LibVLC/3.0.18',
+      'ExoPlayerLab/2.18.1',
+      'okhttp/4.12.0',
+      'Kodi/20.2 (Windows NT 10.0; Win64; x64)',
+      'IPTVSmartersPro'
+    ];
+
+    const MAX_DIRECTORY_ROWS = 1500;
+
+    let timerInterval = null;
+    let startTime = 0;
+    let rawPlaylistPayload = "";
+    let currentDisplayedText = "";
+    let cipherPayload = "";
+    let parsedChannelEntries = [];
+    let parsedText = "";
+    let highlightTimer = null;
+    let lastFetchedOriginalUrl = "";
+    let isFetching = false;
+    let currentAbort = null;
+    let saveTimer = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    /* ---------- Safe storage (works even if the browser blocks it) ---------- */
+    const store = {
+      get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+      set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+      remove(k) { try { localStorage.removeItem(k); } catch (e) {} }
+    };
+
+    /* ---------- Theme ---------- */
+    function toggleTheme() {
+      const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = next;
+      store.set('iptv_theme', next);
+    }
+
+    /* ---------- Startup ---------- */
+    window.addEventListener('DOMContentLoaded', () => {
+      TEXT_FIELDS.forEach(id => {
+        const val = store.get(`iptv_${id}`);
+        if (val !== null) $(id).value = val;
+      });
+      SELECT_FIELDS.forEach(id => {
+        const val = store.get(`iptv_${id}`);
+        if (val !== null && [...$(id).options].some(o => o.value === val)) $(id).value = val;
+      });
+      Object.keys(CHECK_FIELDS).forEach(id => {
+        const saved = store.get(`iptv_${id}`);
+        $(id).checked = saved === null ? CHECK_FIELDS[id] : saved === 'true';
+      });
+      updateActivePreset($('userAgent').value);
+
+      document.querySelectorAll('.btn-clear').forEach(b => b.setAttribute('aria-label', 'Clear field'));
+
+      // Save as you type; keep the User-Agent preset highlight in sync
+      [...TEXT_FIELDS, ...SELECT_FIELDS, ...Object.keys(CHECK_FIELDS)].forEach(id => {
+        $(id).addEventListener('input', () => {
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(saveSettings, 250);
+          if (id === 'userAgent') updateActivePreset($('userAgent').value);
+        });
+        $(id).addEventListener('change', saveSettings);
+      });
+
+      // Enter inside a form field runs the fetch
+      document.querySelectorAll('.input-field input').forEach(inp => {
+        inp.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !isFetching) { e.preventDefault(); runFetch(); }
+        });
+      });
+
+      $('channelBadge').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleChannelSidebar(); }
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !isFetching) {
+          runFetch();
+        } else if (e.key === 'Escape' && $('channelSidebar').classList.contains('active')) {
+          $('channelSidebar').classList.remove('active');
+        }
+      });
+
+      // Keep toasts visible while the payload panel is fullscreen
+      document.addEventListener('fullscreenchange', () => {
+        const container = $('winToastContainer');
+        const fs = document.fullscreenElement;
+        (fs || document.body).appendChild(container);
+        $('fullBtn').textContent = fs ? 'Exit' : 'Full';
+      });
+    });
+
+    /* ---------- Toasts ---------- */
+    const TOAST_STYLES = {
+      info:    { accent: '#8b5cf6', ink: '#ffffff' },
+      success: { accent: '#10b981', ink: '#04130d' },
+      warning: { accent: '#f59e0b', ink: '#1a1000' },
+      error:   { accent: '#f87171', ink: '#1a0505' }
+    };
+
+    function showWinToast(title, message, actions = [], type = 'info', duration = 4000) {
+      const container = $('winToastContainer');
+      while (container.children.length >= 4) container.firstElementChild.remove();
+
+      const style = TOAST_STYLES[type] || TOAST_STYLES.info;
+      const toast = document.createElement('div');
+      toast.className = 'win-toast';
+      toast.setAttribute('role', 'status');
+      toast.style.setProperty('--toast-accent', style.accent);
+      toast.style.setProperty('--toast-ink', style.ink);
+
+      const header = document.createElement('div');
+      header.className = 'win-toast-header';
+      const titleEl = document.createElement('span');
+      titleEl.textContent = title;
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'win-toast-close';
+      closeBtn.title = 'Dismiss';
+      closeBtn.setAttribute('aria-label', 'Dismiss notification');
+      closeBtn.textContent = '\u2715';
+      header.append(titleEl, closeBtn);
+
+      const bodyEl = document.createElement('div');
+      bodyEl.className = 'win-toast-body';
+      bodyEl.textContent = message;
+      toast.append(header, bodyEl);
+
+      const hasActions = actions && actions.length > 0;
+      let timer = null;
+      const removeToast = () => {
+        clearTimeout(timer);
+        toast.classList.add('hide');
+        setTimeout(() => toast.remove(), 400);
+      };
+
+      if (hasActions) {
+        const actionsEl = document.createElement('div');
+        actionsEl.className = 'win-toast-actions';
+        actions.forEach(act => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'win-toast-btn';
+          b.textContent = act.text;
+          b.onclick = () => { act.onClick(); removeToast(); };
+          actionsEl.appendChild(b);
+        });
+        toast.appendChild(actionsEl);
+        duration = Math.max(duration, 9000);
+      }
+
+      closeBtn.onclick = removeToast;
+      const arm = () => { clearTimeout(timer); timer = setTimeout(removeToast, duration); };
+      toast.addEventListener('mouseenter', () => clearTimeout(timer));
+      toast.addEventListener('mouseleave', arm);
+
+      container.appendChild(toast);
+      requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+      arm();
+    }
+
+    /* ---------- Small UI helpers ---------- */
+    function toggleTraceExpand() {
+      const isExpanded = $('traceConsole').classList.toggle('expanded');
+      $('traceExpandBtn').textContent = isExpanded ? 'Collapse' : 'Expand';
+    }
+
+    function toggleWrap() {
+      const isWrapped = $('payloadOutput').classList.toggle('wrapped');
+      $('wrapBtn').textContent = isWrapped ? 'Unwrap' : 'Wrap';
+      showWinToast('View Mode', isWrapped ? 'Line wrap: ON' : 'Line wrap: OFF', [], 'info', 2000);
+    }
+
+    const COLLAPSES = { adv: ['collapsePane', 'collapseBtn'], dec: ['decPane', 'decBtn'] };
+
+    function openCollapse(which = 'adv') {
+      const [pane, btn] = COLLAPSES[which];
+      $(pane).classList.add('open');
+      $(btn).classList.add('open');
+    }
+
+    function toggleCollapse(which = 'adv') {
+      const [pane, btn] = COLLAPSES[which];
+      const isOpen = $(pane).classList.toggle('open');
+      $(btn).classList.toggle('open', isOpen);
+    }
+
+    function saveSettings() {
+      TEXT_FIELDS.forEach(id => store.set(`iptv_${id}`, $(id).value.trim()));
+      SELECT_FIELDS.forEach(id => store.set(`iptv_${id}`, $(id).value));
+      Object.keys(CHECK_FIELDS).forEach(id => store.set(`iptv_${id}`, $(id).checked));
+    }
+
+    function clearField(id) {
+      const field = $(id);
+      if (field) {
+        field.value = '';
+        field.focus();
+        saveSettings();
+        if (id === 'userAgent') updateActivePreset('');
+      }
+    }
+
+    function applyUA(uaString) {
+      $('userAgent').value = uaString;
+      saveSettings();
+      updateActivePreset(uaString);
+    }
+
+    function setUA(uaString) {
+      applyUA(uaString);
+      showWinToast('Client Signature', uaString ? `User-Agent set: ${uaString.split('/')[0]}` : 'User-Agent cleared', [], 'info', 2000);
+    }
+
+    function updateActivePreset(currentVal) {
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        const text = btn.textContent;
+        const matches = (text === 'None' && !currentVal) || (currentVal && currentVal.toLowerCase().includes(text.toLowerCase()));
+        btn.classList.toggle('active', !!matches);
+      });
+    }
+
+    function clearAllFields() {
+      TEXT_FIELDS.forEach(id => { $(id).value = ''; store.remove(`iptv_${id}`); });
+      SELECT_FIELDS.forEach(id => { $(id).selectedIndex = 0; store.remove(`iptv_${id}`); });
+      Object.keys(CHECK_FIELDS).forEach(id => { $(id).checked = CHECK_FIELDS[id]; store.remove(`iptv_${id}`); });
+      clearSearch();
+      clearHighlight();
+      updateActivePreset('');
+      resetMonitor();
+      rawPlaylistPayload = "";
+      currentDisplayedText = "";
+      cipherPayload = "";
+      parsedChannelEntries = [];
+      parsedText = "";
+      $('channelSidebar').classList.remove('active');
+      $('processOutput').textContent = 'system: all parameters reset.';
+      $('payloadOutput').textContent = '# Ready. Enter URL and run fetch...';
+      showWinToast('Reset', 'All configuration fields cleared.', [], 'info', 2500);
+    }
+
+    function resetMonitor() {
+      clearInterval(timerInterval);
+      $('pulseLine').classList.remove('active');
+      $('taskName').textContent = 'READY';
+      const state = $('taskState');
+      state.textContent = 'IDLE';
+      state.className = 'm-value status-idle';
+      $('taskTime').textContent = '0.00s';
+      $('taskBytes').textContent = '0 B';
+      $('channelBadge').textContent = '0 channels';
+    }
+
+    function updateState(task, stateStr, stateClass) {
+      $('taskName').textContent = task;
+      const stateEl = $('taskState');
+      stateEl.textContent = stateStr;
+      stateEl.className = 'm-value ' + stateClass;
+    }
+
+    function formatBytes(bytes) {
+      return bytes > 1024 ? (bytes / 1024).toFixed(2) + ' KB' : bytes + ' B';
+    }
+
+    /* ---------- Smart paste:  URL[tag]|User-Agent=...&Cache-Control=... ---------- */
+    function handleSmartPaste() {
+      setTimeout(() => {
+        const el = $('baseUrl');
+        const val = el.value.trim();
+        const pipe = val.indexOf('|');
+        let urlPart = pipe === -1 ? val : val.slice(0, pipe);
+        const headersPart = pipe === -1 ? '' : val.slice(pipe + 1);
+
+        // Bracket tag must sit at the very end (or start) so IPv6 hosts like http://[::1]/ are never touched
+        const tagMatch = urlPart.match(/\[([^\[\]]*)\]\s*$/) || urlPart.match(/^\s*\[([^\[\]]*)\]/);
+        if (pipe === -1 && !tagMatch) return;
+
+        if (tagMatch) {
+          $('bracketTag').value = tagMatch[1];
+          urlPart = urlPart.replace(tagMatch[0], '');
+        }
+        el.value = urlPart.trim();
+
+        if (headersPart) {
+          const params = new URLSearchParams(headersPart);
+          let otherHeaderSet = false;
+          params.forEach((v, k) => {
+            const key = k.toLowerCase();
+            if (key === 'user-agent') {
+              applyUA(v);
+            } else if (key === 'cache-control') {
+              $('cacheControl').value = v;
+              openCollapse('adv');
+            } else if (!otherHeaderSet && v) {
+              $('customHeader').value = `${k}: ${v}`;
+              otherHeaderSet = true;
+              openCollapse('adv');
+            }
+          });
+          showWinToast('Smart Parse', 'Parsed piped parameters successfully.', [], 'success');
+        }
+        saveSettings();
+      }, 20);
+    }
+
+    /* ---------- Copy / save ---------- */
+    function getExportText() {
+      if (!rawPlaylistPayload) return null;
+      const text = currentDisplayedText || rawPlaylistPayload;
+      if (text.startsWith('# No matching channels')) return null;
+      return text;
+    }
+
+    function copyPlaylistOnly() {
+      const text = getExportText();
+      if (!text) {
+        showWinToast('Clipboard', 'No payload available to copy.', [], 'warning');
+        return;
+      }
+      navigator.clipboard.writeText(text).then(() => {
+        showWinToast('Clipboard', 'Payload copied to clipboard successfully.', [], 'success');
+      }).catch(() => showWinToast('Clipboard', 'Failed to copy payload.', [], 'error'));
+    }
+
+    function copyProcessLog() {
+      navigator.clipboard.writeText($('processOutput').textContent).then(() => {
+        showWinToast('Clipboard', 'Full execution trace copied.', [], 'success');
+      }).catch(() => showWinToast('Clipboard', 'Failed to copy log.', [], 'error'));
+    }
+
+    function saveAsM3uFile() {
+      const text = getExportText();
+      if (!text) {
+        showWinToast('Download', 'No playlist data to save.', [], 'warning');
+        return;
+      }
+      const blob = new Blob([text], { type: 'audio/x-mpegurl' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'playlist.m3u';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showWinToast('Download', 'Downloaded playlist.m3u', [], 'success');
+    }
+
+    /* ---------- Filter ---------- */
+    function filterPlaylist() {
+      clearHighlight();
+      const query = $('searchFilter').value.toLowerCase().trim();
+      const output = $('payloadOutput');
+      $('searchClear').classList.toggle('show', query.length > 0);
+
+      if (!rawPlaylistPayload) return;
+
+      if (!query) {
+        output.textContent = rawPlaylistPayload;
+        currentDisplayedText = rawPlaylistPayload;
+        buildChannelDirectory(rawPlaylistPayload);
+        return;
+      }
+
+      const lines = rawPlaylistPayload.split(/\r?\n/);
+      const resultLines = ['#EXTM3U'];
+      let chunk = [];
+      let matched = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith('#EXTINF:')) {
+          if (matched && chunk.length > 0) resultLines.push(...chunk);
+          chunk = [line];
+          matched = line.toLowerCase().includes(query);
+        } else if (chunk.length > 0) {
+          chunk.push(line);
+          if (!matched && line.toLowerCase().includes(query)) matched = true;
+        }
+      }
+      if (matched && chunk.length > 0) resultLines.push(...chunk);
+
+      if (resultLines.length > 1) {
+        currentDisplayedText = resultLines.join('\n');
+        output.textContent = currentDisplayedText;
+        buildChannelDirectory(currentDisplayedText);
+      } else {
+        currentDisplayedText = '# No matching channels found for query: "' + query + '"';
+        output.textContent = currentDisplayedText;
+        $('channelBadge').textContent = '0 found';
+      }
+    }
+
+    function clearSearch() {
+      $('searchFilter').value = '';
+      $('searchClear').classList.remove('show');
+      if (rawPlaylistPayload) {
+        $('payloadOutput').textContent = rawPlaylistPayload;
+        currentDisplayedText = rawPlaylistPayload;
+        buildChannelDirectory(rawPlaylistPayload);
+      }
+    }
+
+    /* ---------- Channel directory ---------- */
+    // Channel title = text after the last comma that is not inside quotes
+    function extractChannelName(line, fallback) {
+      let inQuote = false, lastComma = -1;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') inQuote = !inQuote;
+        else if (c === ',' && !inQuote) lastComma = i;
+      }
+      const name = lastComma === -1 ? '' : line.slice(lastComma + 1).trim();
+      return name || fallback;
+    }
+
+    function buildChannelDirectory(text) {
+      parsedChannelEntries = [];
+      parsedText = text;
+      let count = 0;
+      const re = /^#EXTINF:.*$/gm;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        count++;
+        parsedChannelEntries.push({ count, name: extractChannelName(m[0], 'Channel ' + count), line: m[0], offset: m.index });
+      }
+      $('channelBadge').textContent = `${count} channels`;
+      filterChannelDirectory();
+    }
+
+    function renderChannelDirectoryItems(items) {
+      const listContainer = $('channelListItems');
+      listContainer.textContent = '';
+      const fragment = document.createDocumentFragment();
+      items.slice(0, MAX_DIRECTORY_ROWS).forEach(item => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ch-row-btn';
+        btn.textContent = `${item.count}. ${item.name}`;
+        btn.title = item.name;
+        btn.onclick = () => jumpToChannel(item);
+        fragment.appendChild(btn);
+      });
+      if (items.length > MAX_DIRECTORY_ROWS) {
+        const note = document.createElement('div');
+        note.className = 'ch-note';
+        note.textContent = `Showing first ${MAX_DIRECTORY_ROWS.toLocaleString()} of ${items.length.toLocaleString()}. Type to search.`;
+        fragment.appendChild(note);
+      }
+      listContainer.appendChild(fragment);
+    }
+
+    function filterChannelDirectory() {
+      const q = $('chDirSearch').value.toLowerCase().trim();
+      renderChannelDirectoryItems(q ? parsedChannelEntries.filter(ch => ch.name.toLowerCase().includes(q)) : parsedChannelEntries);
+    }
+
+    // Remove the temporary highlight without re-rendering (keeps the scroll position)
+    function clearHighlight() {
+      if (highlightTimer) {
+        clearTimeout(highlightTimer);
+        highlightTimer = null;
+      }
+      const mark = $('activeChannelMark');
+      if (mark) {
+        const pre = $('payloadOutput');
+        mark.replaceWith(document.createTextNode(mark.textContent));
+        pre.normalize();
+      }
+    }
+
+    function jumpToChannel(item) {
+      clearHighlight();
+      const pre = $('payloadOutput');
+      const fullText = currentDisplayedText || rawPlaylistPayload;
+      const index = (parsedText === fullText) ? item.offset : fullText.indexOf(item.line);
+
+      if (index === -1 || index === undefined) {
+        showWinToast('Directory', 'Channel not found in current view.', [], 'warning');
+        return;
+      }
+
+      $('channelSidebar').classList.remove('active');
+
+      const end = index + item.line.length;
+      const mark = document.createElement('span');
+      mark.className = 'channel-highlight-line';
+      mark.id = 'activeChannelMark';
+      mark.textContent = fullText.slice(index, end);
+
+      pre.textContent = '';
+      pre.append(fullText.slice(0, index), mark, fullText.slice(end));
+
+      mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      highlightTimer = setTimeout(clearHighlight, 3000);
+    }
+
+    function toggleChannelSidebar() {
+      if (!rawPlaylistPayload) {
+        showWinToast('Directory', 'No channels available yet.', [], 'warning');
+        return;
+      }
+      $('channelSidebar').classList.toggle('active');
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        $('payloadCard').requestFullscreen().catch(err => showWinToast('Fullscreen', err.message, [], 'error'));
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    /* ---------- Response analysis ---------- */
+    function isPlaylistText(t) {
+      return t.includes('#EXTM3U') || t.includes('#EXTINF');
+    }
+
+    // Base64 / hex blobs and OpenSSL-style "Salted__" data
+    function looksEncrypted(payload) {
+      const t = (payload || '').trim();
+      if (!t || isPlaylistText(t) || t.startsWith('<')) return false;
+      if (t.startsWith('U2FsdGVkX1')) return true;
+      const compact = t.replace(/\s+/g, '');
+      if (compact.length >= 32 && /^[A-Za-z0-9+/_-]+={0,2}$/.test(compact)) return true;
+      if (compact.length >= 32 && compact.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(compact)) return true;
+      return t.includes('==') && t.length > 100;
+    }
+
+    // Works with HTTP/1.1, HTTP/2 and HTTP/3 verbose output
+    function analyzeResponse(data, targetUrl) {
+      const logs = data.processLog || '';
+      const payload = data.payload || '';
+      const statuses = [...logs.matchAll(/^< HTTP\/[\d.]+ (\d{3})/gm)].map(m => parseInt(m[1], 10));
+      const finalStatus = statuses.length ? statuses[statuses.length - 1] : null;
+      const redirectStatus = statuses.find(c => [301, 302, 303, 307, 308].includes(c)) || null;
+
+      let redirectUrl = null;
+      if (redirectStatus) {
+        const match = logs.match(/^< location:\s*(\S+)/im);
+        if (match && match[1]) {
+          try { redirectUrl = new URL(match[1], targetUrl).href; }
+          catch (e) { redirectUrl = match[1].trim(); }
+        }
+      }
+
+      const curlError = (logs.match(/^curl: \(\d+\).*$/m) || [])[0] || null;
+      const hasPlaylist = isPlaylistText(payload);
+      const isTelegram = !!((redirectUrl && redirectUrl.includes('t.me/')) || payload.includes('t.me/'));
+      const encrypted = !hasPlaylist && looksEncrypted(payload);
+
+      return { data, logs, payload, statuses, finalStatus, redirectStatus, redirectUrl, curlError, hasPlaylist, isTelegram, encrypted };
+    }
+
+    /* ---------- AES decrypt (server-side, using your key) ---------- */
+    async function requestDecrypt(cipher, signal) {
+      const res = await fetch('/api/decrypt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: cipher,
+          key: $('decKey').value,
+          keyFormat: $('decKeyFmt').value,
+          iv: $('decIv').value.trim(),
+          mode: $('decMode').value
+        }),
+        signal
+      });
+      return res.json();
+    }
+
+    async function runDecrypt() {
+      const cipher = cipherPayload || (looksEncrypted(rawPlaylistPayload) ? rawPlaylistPayload : '');
+      if (!cipher) {
+        showWinToast('AES Decrypt', 'No encrypted payload to decrypt. Run a fetch that returns an encrypted playlist first.', [], 'warning');
+        return;
+      }
+      if (!$('decKey').value.trim()) {
+        openCollapse('dec');
+        $('decKey').focus();
+        showWinToast('AES Decrypt', 'Enter the key or passphrase first.', [], 'warning');
+        return;
+      }
+      saveSettings();
+      try {
+        const r = await requestDecrypt(cipher);
+        if (r.ok) {
+          cipherPayload = cipher;
+          showPlaylist(r.text, { decrypted: true });
+          $('processOutput').textContent += `\n[*] Decrypted: ${r.method}\n`;
+          showWinToast('Decrypted', r.method, [], 'success', 6000);
+        } else {
+          showWinToast('AES Decrypt failed', r.error || 'Unknown error', [], 'error', 7000);
+        }
+      } catch (err) {
+        showWinToast('AES Decrypt failed', err.message, [], 'error');
+      }
+    }
+
+    /* ---------- Rendering results ---------- */
+    function showPlaylist(text, opts = {}) {
+      clearHighlight();
+      rawPlaylistPayload = text;
+      currentDisplayedText = text;
+      $('payloadOutput').textContent = text;
+      $('searchFilter').value = '';
+      $('searchClear').classList.remove('show');
+      $('taskBytes').textContent = formatBytes(new Blob([text]).size);
+      buildChannelDirectory(text);
+      if (opts.decrypted) {
+        updateState('DECRYPTED', 'AES OK', 'status-ok');
+      } else {
+        updateState('COMPLETED', String(opts.finalStatus || 200), 'status-ok');
+      }
+    }
+
+    function showDiagnostics(a, ctx) {
+      const { followRedirect, userAgent, triedAuto } = ctx;
+      const isDefaultUA = !userAgent || userAgent.toLowerCase().includes('mozilla');
+      const needsStrictUA = a.isTelegram && !a.hasPlaylist && isDefaultUA && !triedAuto;
+      const shortUrl = a.redirectUrl && a.redirectUrl.length > 60 ? a.redirectUrl.substring(0, 57) + '...' : a.redirectUrl;
+
+      if (a.redirectUrl && !followRedirect && needsStrictUA) {
+        showWinToast(
+          'Smart Diagnostics: Options Available',
+          `Destination: ${shortUrl}\nRecommended: Try enabling redirects or switching to "OTT Navigator" using the options below.`,
+          [
+            { text: 'Apply "OTT Navigator"', onClick: () => applySuggestedUA('OTT Navigator') },
+            { text: 'Enable Redirects', onClick: () => applyRedirectAndFetch(a.redirectUrl) }
+          ],
+          'warning', 14000
+        );
+      } else if (a.redirectUrl && !followRedirect) {
+        showWinToast(
+          'HTTP Redirect Detected',
+          `Destination: ${shortUrl}\nRecommended: Try enabling redirects using the option below if you see a valid redirect url above.`,
+          [{ text: 'Enable Redirects & Re-Fetch', onClick: () => applyRedirectAndFetch(a.redirectUrl) }],
+          'warning', 9000
+        );
+      } else if (needsStrictUA) {
+        showWinToast(
+          'Strict User-Agent Required',
+          'Recommended: Try switching to "OTT Navigator" using the option below to bypass landing pages.',
+          [{ text: 'Apply "OTT Navigator"', onClick: () => applySuggestedUA('OTT Navigator') }],
+          'warning', 10000
+        );
+      }
+    }
+
+    // Action helpers (used by notification buttons)
+    function applyRedirectAndFetch() {
+      $('followRedirect').checked = true;
+      saveSettings();
+      showWinToast('Redirects', 'Redirects enabled. Re-fetching...', [], 'success');
+      runFetch();
+    }
+
+    function disableRedirectAndUseUrl(finalUrl) {
+      $('followRedirect').checked = false;
+      $('baseUrl').value = finalUrl;
+      saveSettings();
+      showWinToast('Optimization', 'Redirects turned off & target updated!', [], 'success');
+      runFetch();
+    }
+
+    function applySuggestedUA(uaPreset) {
+      setUA(uaPreset);
+      showWinToast('User-Agent', `Applied "${uaPreset}". Re-fetching...`, [], 'success');
+      runFetch();
+    }
+
+    /* ---------- Fetch flow ---------- */
+    function buildTargetUrl(baseUrl, token) {
+      if (token && !token.includes('=')) token = 'token=' + token;
+      token = token.replace(/^[?&]+/, '');
+      if (!token) return baseUrl;
+      const sep = /[?&]$/.test(baseUrl) ? '' : (baseUrl.includes('?') ? '&' : '?');
+      return baseUrl + sep + token;
+    }
+
+    async function execCurl(params, signal) {
+      const res = await fetch('/api/exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        signal
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || `Server error ${res.status}`);
+      return data;
+    }
+
+    function setRunning(on) {
+      isFetching = on;
+      $('runBtn').classList.toggle('running', on);
+      $('runLabel').textContent = on ? 'Cancel' : 'Run Fetch';
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      $('taskTime').textContent = ((performance.now() - startTime) / 1000).toFixed(2) + 's';
+      $('pulseLine').classList.remove('active');
+    }
+
+    // Try to turn a response into a usable playlist (plain, or AES-decrypted if a key is set)
+    async function tryResolve(a, signal) {
+      if (a.hasPlaylist) return { text: a.payload, decrypted: false };
+      if (a.encrypted && $('decKey').value.trim()) {
+        try {
+          const r = await requestDecrypt(a.payload, signal);
+          if (r.ok) return { text: r.text, decrypted: true, method: r.method };
+        } catch (e) {
+          if (e.name === 'AbortError') throw e;
+        }
+      }
+      return null;
+    }
+
+    function shouldRetryWithOtherAgents(a) {
+      if (a.hasPlaylist || a.finalStatus === null) return false;
+      if (a.finalStatus === 404 || a.finalStatus === 410 || a.finalStatus >= 500) return false;
+      return true;
+    }
+
+    async function runFetch() {
+      if (isFetching) {
+        if (currentAbort) currentAbort.abort();
+        return;
+      }
+
+      saveSettings();
+      clearHighlight();
+      const processOutput = $('processOutput');
+      const payloadOutput = $('payloadOutput');
+
+      const baseUrl = $('baseUrl').value.trim();
+      const token = $('tokenParam').value.trim();
+      const tag = $('bracketTag').value.trim();
+      const userAgent = $('userAgent').value.trim();
+      const cacheVal = $('cacheControl').value.trim();
+      const customHdr = $('customHeader').value.trim();
+      const followRedirect = $('followRedirect').checked;
+      const autoUA = $('autoUA').checked;
+      const hasKey = !!$('decKey').value.trim();
+
+      if (!baseUrl) {
+        updateState('ERROR', 'NO_URL', 'status-err');
+        processOutput.textContent = '[!] Error: Target URL cannot be empty.\n';
+        showWinToast('Validation', 'Please enter a target URL.', [], 'error');
+        return;
+      }
+
+      const targetUrl = buildTargetUrl(baseUrl, token);
+      lastFetchedOriginalUrl = targetUrl;
+
+      const headersToSend = [];
+      if (cacheVal) {
+        headersToSend.push(cacheVal.toLowerCase().startsWith('cache-control:') ? cacheVal : `Cache-Control: ${cacheVal}`);
+      }
+      if (customHdr) headersToSend.push(customHdr);
+
+      resetMonitor();
+      clearSearch();
+      rawPlaylistPayload = "";
+      currentDisplayedText = "";
+      cipherPayload = "";
+      $('channelSidebar').classList.remove('active');
+      $('pulseLine').classList.add('active');
+      updateState('CURL', 'RUNNING', 'status-run');
+
+      currentAbort = new AbortController();
+      const signal = currentAbort.signal;
+      setRunning(true);
+
+      startTime = performance.now();
+      timerInterval = setInterval(() => {
+        $('taskTime').textContent = ((performance.now() - startTime) / 1000).toFixed(2) + 's';
+      }, 50);
+
+      let cmdDisplay = 'curl -v -sS';
+      if (followRedirect) cmdDisplay += ' -L';
+      if (userAgent) cmdDisplay += ` -A "${userAgent}"`;
+      headersToSend.forEach(h => cmdDisplay += ` -H "${h}"`);
+      cmdDisplay += ` "${targetUrl}"`;
+
+      let trace = `[*] INITIALIZING REQUEST:\n -> Target: ${targetUrl}\n`;
+      if (tag) trace += ` -> Tag: [${tag}]\n`;
+      if (userAgent) trace += ` -> UA: ${userAgent}\n`;
+      headersToSend.forEach(h => trace += ` -> Header: ${h}\n`);
+      trace += ` -> Redirects (-L): ${followRedirect ? 'ENABLED' : 'DISABLED'}\n`;
+      trace += ` -> Auto User-Agent: ${autoUA ? 'ON' : 'OFF'}\n`;
+      trace += ` -> AES key: ${hasKey ? 'provided (auto-decrypt ON)' : 'not set'}\n`;
+      trace += `[*] Executing: ${cmdDisplay}\n------------------------------------------------------------\n`;
+      processOutput.textContent = trace;
+      payloadOutput.textContent = '# Fetching stream...';
+
+      try {
+        const a = analyzeResponse(await execCurl({
+          url: targetUrl, ua: userAgent, headers: headersToSend, followRedirect
+        }, signal), targetUrl);
+        processOutput.textContent += a.logs;
+
+        let solved = await tryResolve(a, signal);
+        let winningUA = null;
+        let winningAnalysis = null;
+        let triedAuto = false;
+
+        // Server blocked / redirected / encrypted with the current agent: try other player agents
+        if (!solved && autoUA && shouldRetryWithOtherAgents(a)) {
+          triedAuto = true;
+          const candidates = UA_FALLBACKS.filter(u => u.toLowerCase() !== userAgent.toLowerCase());
+          for (let i = 0; i < candidates.length; i++) {
+            const ua = candidates[i];
+            updateState('AUTO-UA', `TRY ${i + 1}/${candidates.length}`, 'status-run');
+            processOutput.textContent += `\n[*] Auto User-Agent ${i + 1}/${candidates.length}: ${ua}\n` +
+              '------------------------------------------------------------\n';
+            const b = analyzeResponse(await execCurl({
+              url: targetUrl, ua, headers: headersToSend, followRedirect: true, timeout: 25
+            }, signal), targetUrl);
+            processOutput.textContent += b.logs;
+            const s = await tryResolve(b, signal);
+            if (s) {
+              solved = s;
+              winningUA = ua;
+              winningAnalysis = b;
+              break;
+            }
+          }
+          if (!solved) processOutput.textContent += `\n[!] Auto User-Agent: none of ${candidates.length} agents returned a playlist.\n`;
+        }
+
+        stopTimer();
+
+        if (solved) {
+          const status = (winningAnalysis || a).finalStatus;
+          showPlaylist(solved.text, { decrypted: solved.decrypted, finalStatus: status });
+          if (solved.decrypted) {
+            cipherPayload = (winningAnalysis || a).payload;
+            processOutput.textContent += `\n[*] Decrypted: ${solved.method}\n`;
+          }
+
+          if (winningUA) {
+            applyUA(winningUA);
+            let msg = `User-Agent "${winningUA.split('/')[0]}" returned the playlist and was saved in the User-Agent field.`;
+            if (!followRedirect && winningAnalysis.redirectStatus) {
+              $('followRedirect').checked = true;
+              saveSettings();
+              msg += '\nRedirect following was turned on as well.';
+            }
+            showWinToast('Playlist unlocked', msg, [], 'success', 8000);
+          }
+          if (solved.decrypted) {
+            showWinToast('Decrypted', solved.method, [], 'success', 6000);
+          }
+
+          // Direct-URL optimisation hint (only for a plain first-attempt success)
+          if (!winningUA && followRedirect && a.finalStatus === 200 && !a.isTelegram) {
+            const locs = [...a.logs.matchAll(/^< location:\s*(https?:\/\/\S+)/gim)];
+            const dest = locs.length ? locs[locs.length - 1][1].trim() : null;
+            if (dest && dest !== lastFetchedOriginalUrl) {
+              showWinToast(
+                'Direct URL Optimization Available',
+                `Final Destination: ${dest}`,
+                [{ text: 'Use Direct URL & Disable Redirects', onClick: () => disableRedirectAndUseUrl(dest) }],
+                'success', 10000
+              );
+            }
+          }
+        } else {
+          showUnsolved(a, { followRedirect, userAgent, triedAuto, hasKey });
+        }
+      } catch (err) {
+        stopTimer();
+        if (err.name === 'AbortError') {
+          updateState('CANCELLED', 'STOPPED', 'status-idle');
+          processOutput.textContent += '\n[!] Cancelled by user.\n';
+          payloadOutput.textContent = '# Cancelled.';
+        } else {
+          updateState('FAILED', 'CONN_ERR', 'status-err');
+          processOutput.textContent += `\n[!] Error: ${err.message}\n`;
+          payloadOutput.textContent = '# Fetch failed.';
+          showWinToast('Request failed', err.message, [], 'error', 7000);
+        }
+      } finally {
+        setRunning(false);
+        currentAbort = null;
+      }
+    }
+
+    // Nothing usable came back: show what the first response was and explain why
+    function showUnsolved(a, ctx) {
+      const { followRedirect, triedAuto, hasKey } = ctx;
+      const payloadOutput = $('payloadOutput');
+
+      showDiagnostics(a, ctx);
+
+      if (triedAuto) {
+        showWinToast(
+          'Auto User-Agent',
+          'Tried the common player agents but none returned a playlist.' +
+            (a.encrypted && !hasKey ? '\nThe response looks encrypted. Enter your key in "AES Decrypt".' : ''),
+          [], 'warning', 9000
+        );
+      }
+
+      if (a.redirectUrl && !followRedirect) {
+        payloadOutput.textContent = '# HTTP Redirect encountered. See notification in bottom-right corner for destination details and quick actions.';
+        updateState('REDIRECT', String(a.redirectStatus || '30X'), 'status-err');
+        $('channelBadge').textContent = 'Redirect Notice';
+      } else if (a.payload) {
+        rawPlaylistPayload = a.payload;
+        currentDisplayedText = a.payload;
+        payloadOutput.textContent = a.payload;
+        $('taskBytes').textContent = formatBytes(new Blob([a.payload]).size);
+
+        if (a.encrypted) {
+          cipherPayload = a.payload;
+          updateState('ENCRYPTED', 'AES_CIPHER', 'status-run');
+          $('channelBadge').textContent = 'Ciphertext Blob';
+          if (hasKey) {
+            showWinToast('AES Decrypt', 'Could not decrypt with the key you entered. Check the key, or pick the exact mode and IV.', [
+              { text: 'Open Decrypt Settings', onClick: () => { openCollapse('dec'); $('decKey').focus(); } }
+            ], 'error', 10000);
+          } else {
+            showWinToast('Encrypted playlist', 'The server returned an AES-encrypted playlist. Enter the key to decrypt it.', [
+              { text: 'Open Decrypt Settings', onClick: () => { openCollapse('dec'); $('decKey').focus(); } }
+            ], 'warning', 10000);
+          }
+        } else {
+          buildChannelDirectory(a.payload);
+          if (a.finalStatus && a.finalStatus >= 400) {
+            updateState('HTTP ERROR', String(a.finalStatus), 'status-err');
+          } else {
+            updateState('NO PLAYLIST', String(a.finalStatus || '---'), 'status-err');
+            showWinToast('Not a playlist', 'The response did not contain #EXTM3U or #EXTINF entries.', [], 'warning', 6000);
+          }
+        }
+      } else {
+        payloadOutput.textContent = '# Empty response returned.';
+        if (a.curlError) {
+          updateState('FAILED', 'CURL_ERR', 'status-err');
+          showWinToast('curl error', a.curlError.replace(/^curl:\s*/, ''), [], 'error', 8000);
+        } else if (a.finalStatus && a.finalStatus >= 400) {
+          updateState('HTTP ERROR', String(a.finalStatus), 'status-err');
+        } else {
+          updateState('EMPTY', 'NO_BODY', 'status-err');
+        }
+      }
+    }
+  </script>
+</body>
+</html>
