@@ -1,10 +1,23 @@
-Set sh = CreateObject("WScript.Shell")
-dir = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
+#!/usr/bin/env bash
+# Starts Playlist Checker on macOS / Linux.
+#   ./launch.sh      run in this terminal (Ctrl+C to stop)
+#   ./launch.sh -b   run in the background (stop with ./stop.sh)
+cd "$(dirname "$0")" || exit 1
 
-' Make sure Node.js is installed before starting
-If sh.Run("cmd /c where node >nul 2>nul", 0, True) <> 0 Then
-  MsgBox "Node.js was not found." & vbCrLf & "Install it from https://nodejs.org and try again.", 16, "Playlist Checker"
-  WScript.Quit 1
-End If
+if ! command -v node >/dev/null 2>&1; then
+  echo "Node.js was not found. Install it first (see README > Setup)." >&2
+  exit 1
+fi
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl was not found. Install it first (see README > Setup)." >&2
+  exit 1
+fi
 
-sh.Run "node """ & dir & "\app.js""", 0, False
+if [ "$1" = "-b" ]; then
+  nohup node app.js >playlist-checker.log 2>&1 &
+  echo "Playlist Checker started in the background: http://localhost:8765"
+  echo "Stop it with ./stop.sh"
+else
+  echo "Playlist Checker running at http://localhost:8765 (Ctrl+C to stop)"
+  exec node app.js
+fi
